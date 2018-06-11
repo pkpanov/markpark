@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>MarkPark</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+    
+      var MARKER_STATE_EDIT = 0;
+      var MARKER_STATE_DELETE = 1;
+      var MARKER_STATE_LOCKED = 2;
+      
+      var MAP_MODE_EDIT_OUTER = 0;
+      var MAP_MODE_EDIT_INNER = 1;
+      
+      var world_coords = [ { lat: 85, lng: 180 },
+                           { lat: 85, lng: 90 },
+                           { lat: 85, lng: 0 },
+                           { lat: 85, lng: -90 },
+                           { lat: 85, lng: -180 },
+                           { lat: 0, lng: -180 },
+                           { lat: -85, lng: -180 },
+                           { lat: -85, lng: -90 },
+                           { lat: -85, lng: 0 },
+                           { lat: -85, lng: 90 },
+                           { lat: -85, lng: 180 },
+                           { lat: 0, lng: 180 },
+                           { lat: 85, lng: 180 } ];
+    
+      var park_map;
+      var park_border_line;
+      var park_border_line_coords = [];
+      var park_inner;
+      var park_inner_coords = [];
+      var mouse_down_lat = 0;
+      var mouse_down_lnt = 0;
+      var park_markers;
+      var ruler_markers = [];
+      var icon_bluepin, icon_redpin, icon_greenpin;
+
+      function init_map() {
+      
+        park_map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat: 42.707261, lng: 23.271824 },
+          zoom: 15,
+          draggableCursor: 'url(ico/track-15.png), auto', 
+          mode: MAP_MODE_EDIT_OUTER,
+          styles: [
+            { 
+              "featureType": "poi.attraction",
+              "stylers": [ { "visibility": "off" } ]
+            },
+            { 
+              "featureType": "poi.business",
+              "stylers": [ { "visibility": "off" } ]
+            },
+            { 
+              "featureType": "poi.government",
+              "stylers": [ { "visibility": "off" } ]
+            },
+            {
+              "featureType": "road.local",
+              "stylers": [{ "visibility": "off" } ]
+            },
+            {
+              "stylers": [{ lightness: 0 } ]
+            }
+          ]
+        });
+        
+        icon_bluepin = {
+          url: 'ico/blue-pushpin.png',
+          scaledSize: new google.maps.Size( 32, 32 ),
+          origin: new google.maps.Point( 0, 0 ),
+          anchor: new google.maps.Point( 12, 36 )
+        };
+      
+        icon_redpin = {
+          url: 'ico/red-pushpin.png',
+          scaledSize: new google.maps.Size( 32, 32 ),
+          origin: new google.maps.Point( 0, 0 ),
+          anchor: new google.maps.Point( 12, 36 )
+        };
+      
+        icon_greenpin = {
+          url: 'ico/green-pushpin.png',
+          scaledSize: new google.maps.Size( 32, 32 ),
+          origin: new google.maps.Point( 0, 0 ),
+          anchor: new google.maps.Point( 12, 36 )
+        };
+        
+        icon_ruler = {
+          url: 'ico/ruler.png',
+          scaledSize: new google.maps.Size( 24, 24 ),
+          origin: new google.maps.Point( 0, 0 ),
+        };
+        
+        park_markers = new google.maps.MVCArray();
+        
+        park_border_line = new google.maps.Polyline({
+          path: park_border_line_coords,
+          geodesic: true,
+          strokeColor: '#000000',
+          strokeOpacity: 0.7,
+          strokeWeight: 2,
+          editable: true,
+          suppressUndo: true
+        });
+        
+        park_inner = new google.maps.Polygon({
+          path: park_inner_coords,
+          geodesic: true,
+          strokeWeight: 0,
+          fillColor: '#000000',
+          fillOpacity: 0.1,
+          clickable: false
+        });
+
+        park_border_line.setMap( park_map );
+        park_inner.setMap( park_map );
+        park_map.addListener( 'click', add_vertex );
+        park_map.addListener( 'rightclick', toogle_map_mode );
+        park_map.data.addListener( 'rightclick', toogle_map_mode );
+
+        park_border_line.addListener( 'mousedown', vertex_mouse_down );
+        park_border_line.addListener( 'mouseup', vertex_mouse_up );
+        park_border_line.getPath().addListener( 'insert_at', vertex_insert );
+        park_border_line.getPath().addListener( 'remove_at', vertex_remove );
+        park_border_line.getPath().addListener( 'set_at', vertex_modify );
+      }
+
+      function vertex_mouse_down( event ) {
+      
+        if ( event.vertex !== undefined ) {
+        
+            mouse_down_lat = event.latLng.lat();
+            mouse_down_lng = event.latLng.lng();
+        }
+      }
+      
+      function change_marker_state( marker, idx, state ) {
+
+        marker.set( 'state', state );
+        if ( marker.get( 'infowindow' ) !== null ) {
+        
+            marker.get( 'infowindow' ).close();
+            marker.set( 'infowindow', null );
+        }
+        google.maps.event.clearListeners( marker, 'click' );
+
+        if ( state == MARKER_STATE_EDIT ) {
+        
+            marker.setIcon( icon_bluepin );
+        } else if ( state == MARKER_STATE_DELETE ) {
+        
+            var infowindow = new google.maps.InfoWindow({
+              disableAutoPan: true,
+              content: 'натисни за изтриване'
+            });
+                    
+            infowindow.open( park_map, marker );
+            marker.set( 'infowindow', infowindow );
+            
+            marker.setIcon( icon_redpin );
+            marker.addListener( 'click', function() {
+                    (function( ) { park_border_line.getPath().removeAt( idx ); })();
+            });
+        } else if ( state == MARKER_STATE_LOCKED ) {
+        
+            marker.setIcon( icon_greenpin );
+        }
+      }
+      
+      function vertex_mouse_up( event ) {
+      
+        if ( ( event.vertex !== undefined ) &&
+             ( event.latLng.lat() == mouse_down_lat ) &&
+             ( event.latLng.lng() == mouse_down_lng ) ) {
+                 
+            if ( park_markers.getAt( event.vertex ).get( 'state' ) == MARKER_STATE_DELETE ) {
+                
+                change_marker_state( park_markers.getAt( event.vertex ), event.vertex, MARKER_STATE_EDIT );
+            } else if ( park_markers.getAt( event.vertex ).get( 'state' ) == MARKER_STATE_EDIT ) {
+            
+                for ( var i = 0; i < park_markers.getLength(); i++ ) {
+                
+                    change_marker_state( park_markers.getAt( i ), i, MARKER_STATE_EDIT );
+                }
+                
+                change_marker_state( park_markers.getAt( event.vertex ), event.vertex, MARKER_STATE_DELETE );
+            }
+        }
+      }
+
+      function vertex_insert( idx ) {
+
+        var marker = new google.maps.Marker( {
+            position: park_border_line.getPath().getAt( idx ),
+            map: park_map,
+            animation: google.maps.Animation.DROP,
+            icon: icon_bluepin
+        } );
+      
+        park_markers.insertAt( idx, marker );
+        park_markers.getAt( idx ).set( 'state', MARKER_STATE_EDIT );
+        park_markers.getAt( idx ).set( 'infowindow', null );
+        park_inner.getPath().insertAt( idx, park_border_line.getPath().getAt( idx ) );
+      }
+      
+      function vertex_remove( idx, removed ) {
+
+        park_markers.getAt( idx ).setMap( null );
+        park_markers.removeAt( idx );
+        park_inner.getPath().removeAt( idx );
+      }
+      
+      function vertex_modify( idx, prev ) {
+      
+        park_markers.getAt( idx ).setPosition( park_border_line.getPath().getAt( idx ) );
+        park_inner.getPath().setAt( idx, park_border_line.getPath().getAt( idx ) );
+      }
+
+      function add_vertex( event ) {
+
+          if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_OUTER ) {
+          
+            park_border_line.getPath().push( event.latLng );
+          }
+      }
+      
+      function add_park_border_line_rulers() {
+      
+          var i;
+          var len = park_border_line.getPath().length;
+      
+          if ( len < 2 ) return;
+          
+          for ( i = 0; i < len; i++ ) {
+          
+            var midlat = ( park_border_line.getPath().getAt( i ).lat() + park_border_line.getPath().getAt( ( i + 1 ) % len ).lat() ) / 2;
+            var midlng = ( park_border_line.getPath().getAt( i ).lng() + park_border_line.getPath().getAt( ( i + 1 ) % len ).lng() ) / 2;
+
+            var ruler_marker = new google.maps.Marker({
+              position: { lat: midlat,
+                          lng: midlng },
+                          map: park_map,
+                          icon: icon_ruler,
+                          animation: google.maps.Animation.DROP,
+              });
+              
+            ruler_markers.push( ruler_marker );
+
+            ruler_marker.addListener( 'click', (function(idx) {
+                return function f() {
+                
+                    var dist_str = String( google.maps.geometry.spherical.computeDistanceBetween(
+                      park_border_line.getPath().getAt( idx ),
+                      park_border_line.getPath().getAt( ( idx + 1 ) % len ) ).toFixed( 2 ) ) + ' м';
+
+                    var dist_info = new google.maps.InfoWindow({
+                      disableAutoPan: true,
+                      content: dist_str
+                    });
+                    
+                    dist_info.open( park_map, ruler_markers[ idx ] );
+                }
+            })(i));
+            
+            if ( len == 2 ) break;
+          }
+      }
+      
+      function remove_park_border_line_rulers() {
+      
+        for ( var i = 0; i < ruler_markers.length; i++ )
+            ruler_markers[ i ].setMap( null );
+            
+        ruler_markers = [];
+      }
+      
+      function toogle_map_mode( event ) {
+
+        if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_OUTER ) {
+        
+            for ( var i = 0; i < park_markers.getLength(); i++ ) {
+                
+                change_marker_state( park_markers.getAt( i ), i, MARKER_STATE_LOCKED );
+            }
+            
+            park_inner.setVisible( false );
+            park_border_line.setVisible( false );
+		    park_map.data.add({
+              geometry: new google.maps.Data.Polygon( [ world_coords, park_border_line.getPath().getArray() ] )
+            });
+            
+            park_map.data.setStyle({
+              strokeWeight: 1
+            });
+            
+            add_park_border_line_rulers();
+
+            park_map.set( 'mode', MAP_MODE_EDIT_INNER );
+        } else if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_INNER ) {
+        
+            for ( var i = 0; i < park_markers.getLength(); i++ ) {
+                
+                change_marker_state( park_markers.getAt( i ), i, MARKER_STATE_EDIT );
+            }
+        
+            park_inner.setVisible( true );
+            park_border_line.setVisible( true );
+            park_map.data.forEach( function( f ) {
+              park_map.data.remove( f );
+            });
+            
+            remove_park_border_line_rulers();
+            
+            park_map.set( 'mode', MAP_MODE_EDIT_OUTER );
+        } else {
+        
+            alert("Unsupported map mode");
+        }
+      }
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBzL7gBsitqj0ZQcaJc6haj6C1QQbJztGI&callback=init_map">
+    </script>
+  </body>
+</html>
