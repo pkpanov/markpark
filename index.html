@@ -1,25 +1,34 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>MarkPark</title>
+    <title>markpark</title>
     <meta name="viewport" content="initial-scale=1.0">
     <meta charset="utf-8">
     <style>
-      /* Always set the map height explicitly to define the size of the div
-       * element that contains the map. */
       #map {
         height: 100%;
       }
-      /* Optional: Makes the sample page fill the window. */
       html, body {
         height: 100%;
         margin: 0;
         padding: 0;
       }
+      
+      #areapanel {
+        font-family: Arial, sans-serif;
+        font-size: 1.2em;
+        font-weight: bold;
+        background: #fff;
+        padding: 10px;
+        margin: 10px;
+        border-radius: 5px;
+      }
+      
     </style>
   </head>
   <body>
     <div id="map"></div>
+    <div id="areapanel">.</div>
     <script>
     
       var MARKER_STATE_EDIT = 0;
@@ -28,6 +37,9 @@
       
       var MAP_MODE_EDIT_OUTER = 0;
       var MAP_MODE_EDIT_INNER = 1;
+      
+      var TILE_SIZE = 32;
+      var FIXED_ZOOM = 16;
       
       var world_coords = [ { lat: 85, lng: 180 },
                            { lat: 85, lng: 90 },
@@ -48,17 +60,92 @@
       var park_border_line_coords = [];
       var park_inner;
       var park_inner_coords = [];
+      var park_grid;
       var mouse_down_lat = 0;
       var mouse_down_lnt = 0;
       var park_markers;
       var ruler_markers = [];
       var icon_bluepin, icon_redpin, icon_greenpin;
+      var areapanel;
+      
+      function GridOverlay( tileSize ) {
+        this.tileSize = tileSize;
+		this.loadedTiles = {};
+		this.loadedTrees = {};
+      }
+
+      GridOverlay.prototype.getTile = function(coord, zoom, ownerDocument) {
+
+        var tile = ownerDocument.createElement('div');
+		var img = ownerDocument.createElement('img');
+		var p = new google.maps.Point( coord.x, coord.y );
+		var tile_id = 'x_' + coord.x + '_y_' + coord.y;
+		this.loadedTiles[ tile_id ] = tile;
+		
+		if ( this.loadedTrees[ tile_id ] != undefined ) {
+
+          img.setAttribute( 'src', 'ico/tree1.png' );
+		  img.setAttribute( 'width', this.tileSize.width );
+		  img.setAttribute( 'height',this.tileSize.height );
+		  img.style.position = 'absolute';
+		  img.style.margin = 'auto';
+		  img.style.top = '0';
+		  img.style.left = '0';
+		  img.style.right = '0';
+		  img.style.bottom = '0';
+		  tile.appendChild( img );
+		}
+
+        tile.style.width = this.tileSize.width + 'px';
+        tile.style.height = this.tileSize.height + 'px';
+        tile.style.fontSize = '10';
+        tile.style.borderStyle = 'solid';
+        tile.style.borderWidth = '1px';
+        tile.style.borderColor = '#aaaaaa';
+		
+        return tile;
+      };
+      
+      GridOverlay.prototype.refreshTile = function( coord ) {
+		  
+        var tile_id = 'x_' + coord.x + '_y_' + coord.y; 
+		  
+        if ( ( this.loadedTiles[ tile_id ] != undefined ) &&
+		     ( this.loadedTrees[ tile_id ] == undefined ) ) {
+			
+          var img = document.createElement('img');
+          
+		  img.setAttribute( 'src', 'ico/tree1.png' );
+		  img.setAttribute( 'width', this.tileSize.width );
+		  img.setAttribute( 'height',this.tileSize.height );
+		  img.style.position = 'absolute';
+		  img.style.margin = 'auto';
+		  img.style.top = '0';
+		  img.style.left = '0';
+		  img.style.right = '0';
+		  img.style.bottom = '0';
+		  this.loadedTiles[ tile_id ].appendChild( img );
+
+			if ( this.loadedTrees[ tile_id ] == undefined )
+              this.loadedTrees[ tile_id ] = 1;
+		  }
+	  }
+	  
+	  GridOverlay.prototype.releaseTile = function( tile ) { 
+      
+        delete this.loadedTiles[ tile.tile_id ];
+		delete this.loadedTrees[ tile.tile_id ]; 
+        tile = null; 
+	  };
 
       function init_map() {
       
         park_map = new google.maps.Map(document.getElementById('map'), {
           center: { lat: 42.707261, lng: 23.271824 },
-          zoom: 15,
+          zoom: FIXED_ZOOM,
+          minZoom: FIXED_ZOOM,
+          maxZoom: FIXED_ZOOM,
+          zoomControl: false,
           draggableCursor: 'url(ico/track-15.png), auto', 
           mode: MAP_MODE_EDIT_OUTER,
           styles: [
@@ -107,7 +194,7 @@
         
         icon_ruler = {
           url: 'ico/ruler.png',
-          scaledSize: new google.maps.Size( 24, 24 ),
+          scaledSize: new google.maps.Size( 16, 16 ),
           origin: new google.maps.Point( 0, 0 ),
         };
         
@@ -143,6 +230,11 @@
         park_border_line.getPath().addListener( 'insert_at', vertex_insert );
         park_border_line.getPath().addListener( 'remove_at', vertex_remove );
         park_border_line.getPath().addListener( 'set_at', vertex_modify );
+        
+        park_overlay = new GridOverlay( new google.maps.Size( TILE_SIZE, TILE_SIZE ) );
+        
+        areapanel = document.getElementById('areapanel');
+        park_map.controls[google.maps.ControlPosition.TOP_CENTER].push(areapanel);
       }
 
       function vertex_mouse_down( event ) {
@@ -221,6 +313,7 @@
         park_markers.getAt( idx ).set( 'state', MARKER_STATE_EDIT );
         park_markers.getAt( idx ).set( 'infowindow', null );
         park_inner.getPath().insertAt( idx, park_border_line.getPath().getAt( idx ) );
+        update_areapanel();
       }
       
       function vertex_remove( idx, removed ) {
@@ -228,20 +321,34 @@
         park_markers.getAt( idx ).setMap( null );
         park_markers.removeAt( idx );
         park_inner.getPath().removeAt( idx );
+        update_areapanel();
       }
       
       function vertex_modify( idx, prev ) {
       
         park_markers.getAt( idx ).setPosition( park_border_line.getPath().getAt( idx ) );
         park_inner.getPath().setAt( idx, park_border_line.getPath().getAt( idx ) );
+        update_areapanel();
       }
 
       function add_vertex( event ) {
 
-          if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_OUTER ) {
+        if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_OUTER ) {
           
-            park_border_line.getPath().push( event.latLng );
-          }
+          park_border_line.getPath().push( event.latLng );
+        }
+      }
+      
+      function add_tree( event ) {
+
+        var world_coordinates = project( event.latLng );
+		var scale = 1 << FIXED_ZOOM;
+		var t = 256 / TILE_SIZE;
+		var x = Math.floor( world_coordinates.x * scale * t );
+		var y = Math.floor( world_coordinates.y * scale * t );
+		var coord = new google.maps.Point( x, y );
+		  
+		park_overlay.refreshTile( new google.maps.Point( x, y ) );
       }
       
       function add_park_border_line_rulers() {
@@ -295,6 +402,8 @@
       }
       
       function toogle_map_mode( event ) {
+      
+      if ( park_markers.getLength() == 0 ) return;
 
         if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_OUTER ) {
         
@@ -314,8 +423,13 @@
             });
             
             add_park_border_line_rulers();
+            
+            park_map.overlayMapTypes.insertAt( 0, park_overlay );
+            google.maps.event.clearListeners( park_map, 'click' );
+            park_map.addListener( 'click', add_tree );
 
             park_map.set( 'mode', MAP_MODE_EDIT_INNER );
+            
         } else if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_INNER ) {
         
             for ( var i = 0; i < park_markers.getLength(); i++ ) {
@@ -331,11 +445,32 @@
             
             remove_park_border_line_rulers();
             
+            park_map.overlayMapTypes.removeAt( 0 );
+            google.maps.event.clearListeners( park_map, 'click' );
+            park_map.addListener( 'click', add_vertex );
+            
             park_map.set( 'mode', MAP_MODE_EDIT_OUTER );
         } else {
         
             alert("Unsupported map mode");
         }
+      }
+      
+      function project( latLng ) {
+        var siny = Math.sin(latLng.lat() * Math.PI / 180);
+
+        siny = Math.min(Math.max(siny, -0.9999), 0.9999);
+
+        return new google.maps.Point(
+          (0.5 + latLng.lng() / 360),
+          (0.5 - Math.log((1 + siny) / (1 - siny)) / (4 * Math.PI)));
+      }
+      
+      function update_areapanel( ) {
+      
+        var area = google.maps.geometry.spherical.computeArea( park_inner.getPath().getArray() );
+        area /= 1000;
+        areapanel.innerHTML = 'площ на парка:' + '<br>' + area.toFixed( 2 ) + ' декара';
       }
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBzL7gBsitqj0ZQcaJc6haj6C1QQbJztGI&callback=init_map">
