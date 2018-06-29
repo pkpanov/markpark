@@ -100,7 +100,7 @@
         tile.style.height = this.tileSize.height + 'px';
         tile.style.fontSize = '10';
         tile.style.borderStyle = 'solid';
-        tile.style.borderWidth = '1px';
+        tile.style.borderWidth = '1px 1px 0px 0px';
         tile.style.borderColor = '#aaaaaa';
 		
         return tile;
@@ -467,10 +467,19 @@
       }
       
       function update_areapanel( ) {
+	  
+	    var i;
+        var len = park_border_line.getPath().length;
+		var circum = 0;
+		
+		for ( i = 0; i < ( len == 2 ? 1 : len ); i++ )
+		  circum += google.maps.geometry.spherical.computeDistanceBetween(
+                      park_border_line.getPath().getAt( i ),
+                      park_border_line.getPath().getAt( ( i + 1 ) % len ) );
       
         var area = google.maps.geometry.spherical.computeArea( park_inner.getPath().getArray() );
         area /= 1000;
-        areapanel.innerHTML = 'площ на парка:' + '<br>' + area.toFixed( 2 ) + ' декара';
+        areapanel.innerHTML = 'обиколка: &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp' + circum.toFixed( 2 ) + ' метра' + '<br>' + 'пространство: ' + area.toFixed( 2 ) + ' декара';
       }
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBzL7gBsitqj0ZQcaJc6haj6C1QQbJztGI&callback=init_map">
