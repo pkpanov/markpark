@@ -15,13 +15,69 @@
       }
       
       #areapanel {
+        position: absolute;
         font-family: Arial, sans-serif;
-        font-size: 1.2em;
+        font-size: 0.8em;
         font-weight: bold;
-        background: #fff;
+        background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
         padding: 10px;
         margin: 10px;
         border-radius: 5px;
+        top: 20px;
+        right: 20px;
+        user-select: none;
+        z-index: 10;
+      }
+      
+      .menu {
+        position: fixed;
+        font-family: Arial, sans-serif;
+        font-size: 0.8em;
+        font-weight: bold;
+        background-color: #DCD9D4; 
+        background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
+        border-radius: 5px;
+        overflow-x: hidden;
+        top: 0;
+        left: 0;
+        padding-top: 18px;
+        height: 100%;
+        width: 0;
+        z-index: 9;
+        transition: 0.5s;
+      }
+      
+      .menu img {
+    
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 64px;
+        height: 64px;
+        margin: 0 auto;
+        margin-bottom: 18px;
+        display: block;
+      }
+      
+      .menu img:hover {
+        box-shadow: 0 0 2px 1px rgba(0, 140, 186, 0.5);
+      }
+      
+      .menu img.unavail:hover {
+        background-image: url('ico/unavail1.jpg');
+        background-repeat: no-repeat;
+        background-position: center; 
+        object-position: -99999px 99999px;
+      }
+      
+      a[href^="http://maps.google.com/maps"]{display:none !important}
+      a[href^="https://maps.google.com/maps"]{display:none !important}
+
+      .gmnoprint a, .gmnoprint span, .gm-style-cc {
+        display:none;
+      }
+      
+      .gmnoprint div {
+         background:none !important;
       }
       
     </style>
@@ -29,6 +85,15 @@
   <body>
     <div id="map"></div>
     <div id="areapanel">.</div>
+    <div id="palette" class="menu">
+      <img src="ico/tree1.png">
+      <img src="ico/lake1.png">
+      <img src="ico/playground1.png">
+      <img src="ico/road1.png">
+      <img src="ico/bench1.png" class="unavail">
+      <img src="ico/animals1.png" class="unavail">
+      <img src="ico/sport1.png" class="unavail">
+    </div>
     <script>
     
       var MARKER_STATE_EDIT = 0;
@@ -67,6 +132,7 @@
       var ruler_markers = [];
       var icon_bluepin, icon_redpin, icon_greenpin;
       var areapanel;
+      var palette;
       
       function GridOverlay( tileSize ) {
         this.tileSize = tileSize;
@@ -142,6 +208,7 @@
       
         park_map = new google.maps.Map(document.getElementById('map'), {
           center: { lat: 42.707261, lng: 23.271824 },
+          disableDefaultUI: true,
           zoom: FIXED_ZOOM,
           minZoom: FIXED_ZOOM,
           maxZoom: FIXED_ZOOM,
@@ -234,7 +301,7 @@
         park_overlay = new GridOverlay( new google.maps.Size( TILE_SIZE, TILE_SIZE ) );
         
         areapanel = document.getElementById('areapanel');
-        park_map.controls[google.maps.ControlPosition.TOP_CENTER].push(areapanel);
+        palette = document.getElementById('palette');
       }
 
       function vertex_mouse_down( event ) {
@@ -428,6 +495,8 @@
             google.maps.event.clearListeners( park_map, 'click' );
             park_map.addListener( 'click', add_tree );
 
+            palette.style.width = '100px';
+            
             park_map.set( 'mode', MAP_MODE_EDIT_INNER );
             
         } else if ( park_map.get( 'mode' ) == MAP_MODE_EDIT_INNER ) {
@@ -448,6 +517,8 @@
             park_map.overlayMapTypes.removeAt( 0 );
             google.maps.event.clearListeners( park_map, 'click' );
             park_map.addListener( 'click', add_vertex );
+            
+            palette.style.width = '0';
             
             park_map.set( 'mode', MAP_MODE_EDIT_OUTER );
         } else {
@@ -479,7 +550,7 @@
       
         var area = google.maps.geometry.spherical.computeArea( park_inner.getPath().getArray() );
         area /= 1000;
-        areapanel.innerHTML = 'обиколка: &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp' + circum.toFixed( 2 ) + ' метра' + '<br>' + 'пространство: ' + area.toFixed( 2 ) + ' декара';
+        areapanel.innerHTML = 'обиколка: ' + circum.toFixed( 2 ) + ' метра' + '<br>' + 'площ: ' + area.toFixed( 2 ) + ' декара';
       }
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBzL7gBsitqj0ZQcaJc6haj6C1QQbJztGI&callback=init_map">
