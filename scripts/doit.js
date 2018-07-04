@@ -38,6 +38,7 @@ var mouse_down_lat = 0;
 var mouse_down_lnt = 0;
 var park_markers;
 var ruler_markers = [];
+var random_markers = [];
 var icon_bluepin, icon_redpin, icon_greenpin;
 var areapanel;
 var palette;
@@ -436,6 +437,43 @@ function add_object(event) {
         park_overlay.refreshTile(new google.maps.Point(x, y + 1));
     } else if ( palette_selected == PAL_OPT_ADD_ROAD ) {
     } else if ( palette_selected == PAL_OPT_RANDOM ) {
+    
+        var random_marker_ico_path = String( Math.floor(Math.random() * 100) );
+        
+        while ( random_marker_ico_path.length < 3 ) random_marker_ico_path = '0' + random_marker_ico_path;
+        random_marker_ico_path = 'ico/random/' + random_marker_ico_path + '.png';
+        
+        var random_marker_ico = {
+
+            url: random_marker_ico_path,
+            scaledSize: new google.maps.Size(32, 32),
+            origin: new google.maps.Point(0, 0),
+        };
+    
+        var random_marker = new google.maps.Marker({
+            position: event.latLng,
+            map: park_map,
+            icon: random_marker_ico,
+            animation: google.maps.Animation.DROP
+        });
+
+        random_markers.push( random_marker );
+        random_marker.addListener('click', function f() {
+
+            var dist_info = new google.maps.InfoWindow({
+                disableAutoPan: true,
+                content: "ala-бала"
+            });
+
+            dist_info.open( park_map, random_marker );
+        });
+        
+        var dist_info = new google.maps.InfoWindow({
+            disableAutoPan: true,
+            content: "ala-бала"
+        });
+
+        dist_info.open( park_map, random_marker );
     }
 }
 
@@ -458,7 +496,7 @@ function add_park_border_line_rulers() {
             },
             map: park_map,
             icon: icon_ruler,
-            animation: google.maps.Animation.DROP,
+            animation: google.maps.Animation.DROP
         });
 
         ruler_markers.push(ruler_marker);
@@ -524,6 +562,9 @@ function toogle_map_mode(event) {
         palette_selected = PAL_OPT_NONE;
 
         palette.style.width = '100px';
+        
+        for ( i = 0; i < random_markers.length; i++ )
+            random_markers[ i ].setMap( park_map );
 
         park_map.set('mode', MAP_MODE_EDIT_INNER);
     } else if (park_map.get('mode') == MAP_MODE_EDIT_INNER) {
@@ -548,6 +589,9 @@ function toogle_map_mode(event) {
         palette_selected = PAL_OPT_NONE;
 
         palette.style.width = '0';
+        
+        for ( i = 0; i < random_markers.length; i++ )
+            random_markers[ i ].setMap( null );
 
         park_map.set('mode', MAP_MODE_EDIT_OUTER);
     } else {
