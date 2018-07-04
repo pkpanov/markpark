@@ -40,33 +40,37 @@
         overflow-x: hidden;
         top: 0;
         left: 0;
-        padding-top: 18px;
+        padding-top: 15px;
         height: 100%;
         width: 0;
         z-index: 9;
         transition: 0.5s;
       }
       
+      .menu .palopt {
+      
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        width: 70px;
+        height: 100px;
+        margin: 0 auto;
+        padding-top: 5px;
+        margin-bottom: 15px;
+        text-align: center;
+      }
+      
       .menu img {
     
-        border: 1px solid #ddd;
         border-radius: 4px;
         width: 64px;
         height: 64px;
         margin: 0 auto;
-        margin-bottom: 18px;
         display: block;
+        margin-bottom: 2px;
       }
       
-      .menu img:hover {
+      .menu div.palopt.active, .menu div.palopt:hover {
         box-shadow: 0 0 2px 1px rgba(0, 140, 186, 0.5);
-      }
-      
-      .menu img.unavail:hover {
-        background-image: url('ico/unavail1.jpg');
-        background-repeat: no-repeat;
-        background-position: center; 
-        object-position: -99999px 99999px;
       }
       
       a[href^="http://maps.google.com/maps"]{display:none !important}
@@ -86,13 +90,11 @@
     <div id="map"></div>
     <div id="areapanel">.</div>
     <div id="palette" class="menu">
-      <img src="ico/tree1.png">
-      <img src="ico/lake1.png">
-      <img src="ico/playground1.png">
-      <img src="ico/road1.png">
-      <img src="ico/bench1.png" class="unavail">
-      <img src="ico/animals1.png" class="unavail">
-      <img src="ico/sport1.png" class="unavail">
+      <div class="palopt"><img src="ico/tree1.png">добави дърво</div>
+      <div class="palopt"><img src="ico/lake1.png">добави вода</div>
+      <div class="palopt"><img src="ico/road1.png">създай път</div>
+      <div class="palopt"><img src="ico/road2.png">поправи път</div>
+      <div class="palopt"><img src="ico/wheel1.png">случаен маркер</div>
     </div>
     <script>
     
@@ -133,32 +135,69 @@
       var icon_bluepin, icon_redpin, icon_greenpin;
       var areapanel;
       var palette;
-      
+
       function GridOverlay( tileSize ) {
         this.tileSize = tileSize;
 		this.loadedTiles = {};
 		this.loadedTrees = {};
       }
+      
+      GridOverlay.prototype.getImage = function( coord ) {
+      
+        var img = document.createElement('img');
+        var tile_up_id = 'x_' + coord.x + '_y_' + (coord.y-1);
+        var tile_down_id = 'x_' + coord.x + '_y_' + (coord.y+1);
+        var tile_left_id = 'x_' + (coord.x-1) + '_y_' + coord.y;
+        var tile_right_id = 'x_' + (coord.x+1) + '_y_' + coord.y;
+        
+         img.setAttribute( 'src', 'ico/tree1.png' );
+		 img.setAttribute( 'width', this.tileSize.width );
+		 img.setAttribute( 'height',this.tileSize.height );
+		 img.style.position = 'absolute';
+		 img.style.margin = 'auto';
+		 img.style.top = '0';
+		 img.style.left = '0';
+		 img.style.right = '0';
+		 img.style.bottom = '0';
+         img.style.borderRadius = '16px';
+         
+         if ( this.loadedTrees[ tile_up_id ] != undefined ) {
+         
+           img.style.borderTopLeftRadius = '0';
+           img.style.borderTopRightRadius = '0';
+         }
+         
+         if ( this.loadedTrees[ tile_down_id ] != undefined ) {
+         
+           img.style.borderBottomLeftRadius = '0';
+           img.style.borderBottomRightRadius = '0';
+         }
+         
+         if ( this.loadedTrees[ tile_left_id ] != undefined ) {
+         
+           img.style.borderTopLeftRadius = '0';
+           img.style.borderBottomLeftRadius = '0';
+         }
+         
+         if ( this.loadedTrees[ tile_right_id ] != undefined ) {
+         
+           img.style.borderTopRightRadius = '0';
+           img.style.borderBottomRightRadius = '0';
+         }
+         
+         return img;
+      }
 
       GridOverlay.prototype.getTile = function(coord, zoom, ownerDocument) {
 
         var tile = ownerDocument.createElement('div');
-		var img = ownerDocument.createElement('img');
 		var p = new google.maps.Point( coord.x, coord.y );
 		var tile_id = 'x_' + coord.x + '_y_' + coord.y;
 		this.loadedTiles[ tile_id ] = tile;
 		
 		if ( this.loadedTrees[ tile_id ] != undefined ) {
 
-          img.setAttribute( 'src', 'ico/tree1.png' );
-		  img.setAttribute( 'width', this.tileSize.width );
-		  img.setAttribute( 'height',this.tileSize.height );
-		  img.style.position = 'absolute';
-		  img.style.margin = 'auto';
-		  img.style.top = '0';
-		  img.style.left = '0';
-		  img.style.right = '0';
-		  img.style.bottom = '0';
+          img = this.getImage( coord );
 		  tile.appendChild( img );
 		}
 
@@ -177,24 +216,11 @@
         var tile_id = 'x_' + coord.x + '_y_' + coord.y; 
 		  
         if ( ( this.loadedTiles[ tile_id ] != undefined ) &&
-		     ( this.loadedTrees[ tile_id ] == undefined ) ) {
-			
-          var img = document.createElement('img');
-          
-		  img.setAttribute( 'src', 'ico/tree1.png' );
-		  img.setAttribute( 'width', this.tileSize.width );
-		  img.setAttribute( 'height',this.tileSize.height );
-		  img.style.position = 'absolute';
-		  img.style.margin = 'auto';
-		  img.style.top = '0';
-		  img.style.left = '0';
-		  img.style.right = '0';
-		  img.style.bottom = '0';
+             ( this.loadedTrees[ tile_id ] != undefined ) ) {
+             
+          img = this.getImage( coord );
 		  this.loadedTiles[ tile_id ].appendChild( img );
-
-			if ( this.loadedTrees[ tile_id ] == undefined )
-              this.loadedTrees[ tile_id ] = 1;
-		  }
+        }
 	  }
 	  
 	  GridOverlay.prototype.releaseTile = function( tile ) { 
@@ -233,6 +259,15 @@
               "stylers": [{ "visibility": "off" } ]
             },
             {
+              "featureType": "poi.park",
+              "elementType": "geometry.fill",
+              "stylers": [
+                {
+                  "UNUSEDcolor": "#01FF70"
+                }
+              ]
+            },
+            {
               "stylers": [{ lightness: 0 } ]
             }
           ]
@@ -240,28 +275,28 @@
         
         icon_bluepin = {
           url: 'ico/blue-pushpin.png',
-          scaledSize: new google.maps.Size( 32, 32 ),
+          scaledSize: new google.maps.Size( 24, 24 ),
           origin: new google.maps.Point( 0, 0 ),
-          anchor: new google.maps.Point( 12, 36 )
+          anchor: new google.maps.Point( 8, 24 )
         };
       
         icon_redpin = {
           url: 'ico/red-pushpin.png',
-          scaledSize: new google.maps.Size( 32, 32 ),
+          scaledSize: new google.maps.Size( 24, 24 ),
           origin: new google.maps.Point( 0, 0 ),
-          anchor: new google.maps.Point( 12, 36 )
+          anchor: new google.maps.Point( 8, 24 )
         };
       
         icon_greenpin = {
           url: 'ico/green-pushpin.png',
-          scaledSize: new google.maps.Size( 32, 32 ),
+          scaledSize: new google.maps.Size( 24, 24 ),
           origin: new google.maps.Point( 0, 0 ),
-          anchor: new google.maps.Point( 12, 36 )
+          anchor: new google.maps.Point( 8, 24 )
         };
         
         icon_ruler = {
           url: 'ico/ruler.png',
-          scaledSize: new google.maps.Size( 16, 16 ),
+          scaledSize: new google.maps.Size( 20, 20 ),
           origin: new google.maps.Point( 0, 0 ),
         };
         
@@ -302,6 +337,17 @@
         
         areapanel = document.getElementById('areapanel');
         palette = document.getElementById('palette');
+
+        var palette_options = palette.getElementsByClassName("palopt");
+
+        for ( var i = 0; i < palette_options.length; i++ ) {
+        
+          palette_options[ i ].addEventListener("click", function() {
+            var current_active = document.getElementsByClassName("active");
+            if ( current_active.length > 0 ) current_active[ 0 ].className = current_active[ 0 ].className.replace(" active", "");
+            this.className += " active";
+          });
+        }        
       }
 
       function vertex_mouse_down( event ) {
@@ -414,8 +460,15 @@
 		var x = Math.floor( world_coordinates.x * scale * t );
 		var y = Math.floor( world_coordinates.y * scale * t );
 		var coord = new google.maps.Point( x, y );
+        var tile_id = 'x_' + coord.x + '_y_' + coord.y; 
+        
+        park_overlay.loadedTrees[ tile_id ] = 1;
 		  
 		park_overlay.refreshTile( new google.maps.Point( x, y ) );
+        park_overlay.refreshTile( new google.maps.Point( x-1, y ) );
+        park_overlay.refreshTile( new google.maps.Point( x+1, y ) );
+        park_overlay.refreshTile( new google.maps.Point( x, y-1 ) );
+        park_overlay.refreshTile( new google.maps.Point( x, y+1 ) );
       }
       
       function add_park_border_line_rulers() {
@@ -494,6 +547,9 @@
             park_map.overlayMapTypes.insertAt( 0, park_overlay );
             google.maps.event.clearListeners( park_map, 'click' );
             park_map.addListener( 'click', add_tree );
+            
+            var current_active = document.getElementsByClassName("active");
+            if ( current_active.length > 0 ) current_active[ 0 ].className = current_active[ 0 ].className.replace(" active", "");
 
             palette.style.width = '100px';
             
