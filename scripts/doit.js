@@ -5,12 +5,11 @@ var MARKER_STATE_LOCKED = 2;
 var MAP_MODE_EDIT_OUTER = 0;
 var MAP_MODE_EDIT_INNER = 1;
 
-var PAL_OPT_NONE = 0;
-var PAL_OPT_ADD_TREE = 1;
-var PAL_OPT_ADD_LAKE = 2;
-var PAL_OPT_ADD_ROAD = 3;
-var PAL_OPT_EDIT_ROAD = 4;
-var PAL_OPT_RANDOM = 5;
+var PAL_OPT_NONE        = 0;
+var PAL_OPT_ADD_TREE    = 1;
+var PAL_OPT_ADD_WATER   = 2;
+var PAL_OPT_ADD_ROAD    = 3;
+var PAL_OPT_RANDOM      = 4;
 
 var TILE_SIZE = 32;
 var FIXED_ZOOM = 16;
@@ -42,16 +41,17 @@ var ruler_markers = [];
 var icon_bluepin, icon_redpin, icon_greenpin;
 var areapanel;
 var palette;
-var pal_selected = PAL_OPT_NONE;
+var palette_selected = PAL_OPT_NONE;
 
 function GridOverlay(tileSize) {
 
     this.tileSize = tileSize;
     this.loadedTiles = {};
     this.loadedTrees = {};
+    this.loadedWater = {};
 }
 
-GridOverlay.prototype.getImage = function (coord) {
+GridOverlay.prototype.getImage = function (coord, type) {
 
     var img = document.createElement('img');
     var tile_up_id = 'x_' + coord.x + '_y_' + (coord.y - 1);
@@ -59,7 +59,6 @@ GridOverlay.prototype.getImage = function (coord) {
     var tile_left_id = 'x_' + (coord.x - 1) + '_y_' + coord.y;
     var tile_right_id = 'x_' + (coord.x + 1) + '_y_' + coord.y;
 
-    img.setAttribute('src', 'ico/tree1.png');
     img.setAttribute('width', this.tileSize.width);
     img.setAttribute('height', this.tileSize.height);
     img.style.position = 'absolute';
@@ -69,29 +68,40 @@ GridOverlay.prototype.getImage = function (coord) {
     img.style.right = '0';
     img.style.bottom = '0';
     img.style.borderRadius = '16px';
+    
+    if ( type == PAL_OPT_ADD_TREE ) { 
+    
+        img.setAttribute('src', 'ico/tree1.png');
+    } else if ( type == PAL_OPT_ADD_WATER ) {
+    
+        img.setAttribute('src', 'ico/water1.png');
+        
+        if (this.loadedWater[tile_up_id] != undefined) {
 
-    if (this.loadedTrees[tile_up_id] != undefined) {
+            img.style.borderTopLeftRadius = '0';
+            img.style.borderTopRightRadius = '0';
+        }
 
-        img.style.borderTopLeftRadius = '0';
-        img.style.borderTopRightRadius = '0';
-    }
+        if (this.loadedWater[tile_down_id] != undefined) {
 
-    if (this.loadedTrees[tile_down_id] != undefined) {
+            img.style.borderBottomLeftRadius = '0';
+            img.style.borderBottomRightRadius = '0';
+        }
 
-        img.style.borderBottomLeftRadius = '0';
-        img.style.borderBottomRightRadius = '0';
-    }
+        if (this.loadedWater[tile_left_id] != undefined) {
 
-    if (this.loadedTrees[tile_left_id] != undefined) {
+            img.style.borderTopLeftRadius = '0';
+            img.style.borderBottomLeftRadius = '0';
+        }
 
-        img.style.borderTopLeftRadius = '0';
-        img.style.borderBottomLeftRadius = '0';
-    }
+        if (this.loadedWater[tile_right_id] != undefined) {
 
-    if (this.loadedTrees[tile_right_id] != undefined) {
-
-        img.style.borderTopRightRadius = '0';
-        img.style.borderBottomRightRadius = '0';
+            img.style.borderTopRightRadius = '0';
+            img.style.borderBottomRightRadius = '0';
+        }
+    } else {
+    
+        img.setAttribute('src', 'ico/error1.png');
     }
 
     return img;
@@ -99,22 +109,32 @@ GridOverlay.prototype.getImage = function (coord) {
 
 GridOverlay.prototype.getTile = function (coord, zoom, ownerDocument) {
 
-    var tile = ownerDocument.createElement('div');
-    var p = new google.maps.Point(coord.x, coord.y);
+    var tile = ownerDocument.createElement( 'div' );
+    var p = new google.maps.Point( coord.x, coord.y );
     var tile_id = 'x_' + coord.x + '_y_' + coord.y;
-    this.loadedTiles[tile_id] = tile;
+    this.loadedTiles[ tile_id ] = tile;
 
-    if (this.loadedTrees[tile_id] != undefined) {
+    if ( this.loadedTrees[ tile_id ] != undefined ) {
 
-        img = this.getImage(coord);
-        tile.appendChild(img);
+        img = this.getImage( coord, PAL_OPT_ADD_TREE );
+        tile.style.borderWidth = '1px 1px 0px 0px';
+        tile.appendChild( img );
+    } else if ( this.loadedWater[ tile_id ] != undefined ) {
+    
+        tile.style.borderWidth = '0px 0px 0px 0px';
+        if ( park_overlay.loadedWater[ 'x_' + (coord.x+1) + '_y_' + coord.y ] === undefined ) tile.style.borderRightWidth = '1px';
+        if ( park_overlay.loadedWater[ 'x_' + coord.x + '_y_' + (coord.y-1) ] === undefined ) tile.style.borderTopWidth = '1px';
+        img = this.getImage( coord, PAL_OPT_ADD_WATER );
+        tile.appendChild( img );
+    } else {
+    
+        tile.style.borderWidth = '1px 1px 0px 0px';
     }
 
     tile.style.width = this.tileSize.width + 'px';
     tile.style.height = this.tileSize.height + 'px';
     tile.style.fontSize = '10';
     tile.style.borderStyle = 'solid';
-    tile.style.borderWidth = '1px 1px 0px 0px';
     tile.style.borderColor = '#aaaaaa';
 
     return tile;
@@ -124,11 +144,24 @@ GridOverlay.prototype.refreshTile = function (coord) {
 
     var tile_id = 'x_' + coord.x + '_y_' + coord.y;
 
-    if ((this.loadedTiles[tile_id] != undefined) &&
-        (this.loadedTrees[tile_id] != undefined)) {
+    if ( this.loadedTiles[ tile_id ] != undefined )  {
+    
+        if ( this.loadedTrees[ tile_id ] != undefined ) {
+        
+            img = this.getImage( coord, PAL_OPT_ADD_TREE );
+            this.loadedTiles[ tile_id ].style.borderWidth = '1px 1px 0px 0px';
+        } else if ( this.loadedWater[ tile_id ] != undefined ) {
+        
+            this.loadedTiles[ tile_id ].style.borderWidth = '0px 0px 0px 0px';
+            if ( park_overlay.loadedWater[ 'x_' + (coord.x+1) + '_y_' + coord.y ] === undefined ) this.loadedTiles[ tile_id ].style.borderRightWidth = '1px';
+            if ( park_overlay.loadedWater[ 'x_' + coord.x + '_y_' + (coord.y-1) ] === undefined ) this.loadedTiles[ tile_id ].style.borderTopWidth = '1px';
+            img = this.getImage( coord, PAL_OPT_ADD_WATER );
+        } else {
+        
+            img = this.getImage( coord, PAL_OPT_NONE );
+        }
 
-        img = this.getImage(coord);
-        this.loadedTiles[tile_id].appendChild(img);
+        this.loadedTiles[ tile_id ].appendChild( img );
     }
 }
 
@@ -136,6 +169,7 @@ GridOverlay.prototype.releaseTile = function (tile) {
 
     delete this.loadedTiles[tile.tile_id];
     delete this.loadedTrees[tile.tile_id];
+    delete this.loadedWater[tile.tile_id];
     tile = null;
 };
 
@@ -257,7 +291,10 @@ function init_map() {
             this.className += " active";
 
             for (var j = 0; j < palette_options.length; j++)
-                if (palette_options[j] == this) pal_selected = j;
+                if (palette_options[j] == this) {
+                    palette_selected = j+1;
+                    break;
+                }
         });
     }
 }
@@ -364,8 +401,8 @@ function add_vertex(event) {
     }
 }
 
-function add_tree(event) {
-
+function add_object(event) {
+    
     var world_coordinates = project(event.latLng);
     var scale = 1 << FIXED_ZOOM;
     var t = 256 / TILE_SIZE;
@@ -373,14 +410,33 @@ function add_tree(event) {
     var y = Math.floor(world_coordinates.y * scale * t);
     var coord = new google.maps.Point(x, y);
     var tile_id = 'x_' + coord.x + '_y_' + coord.y;
+    
+    if ( ( park_overlay.loadedTrees[tile_id] != undefined ) || ( park_overlay.loadedWater[tile_id] != undefined ) ) return;
 
-    park_overlay.loadedTrees[tile_id] = 1;
-
-    park_overlay.refreshTile(new google.maps.Point(x, y));
-    park_overlay.refreshTile(new google.maps.Point(x - 1, y));
-    park_overlay.refreshTile(new google.maps.Point(x + 1, y));
-    park_overlay.refreshTile(new google.maps.Point(x, y - 1));
-    park_overlay.refreshTile(new google.maps.Point(x, y + 1));
+    if ( palette_selected == PAL_OPT_NONE ) {
+    } else if ( palette_selected == PAL_OPT_ADD_TREE ) {
+    
+        park_overlay.loadedTrees[tile_id] = 1;
+        park_overlay.refreshTile(new google.maps.Point(x, y));
+    } else if ( palette_selected == PAL_OPT_ADD_WATER ) {
+    
+        park_overlay.loadedWater[tile_id] = 1;
+        park_overlay.refreshTile(new google.maps.Point(x, y));
+        
+        if ( park_overlay.loadedWater[ 'x_' + (x-1) + '_y_' + y ] != undefined )
+        park_overlay.refreshTile(new google.maps.Point(x - 1, y));
+        
+        if ( park_overlay.loadedWater[ 'x_' + (x+1) + '_y_' + y ] != undefined )
+        park_overlay.refreshTile(new google.maps.Point(x + 1, y));
+        
+        if ( park_overlay.loadedWater[ 'x_' + x + '_y_' + (y-1) ] != undefined )
+        park_overlay.refreshTile(new google.maps.Point(x, y - 1));
+        
+        if ( park_overlay.loadedWater[ 'x_' + x + '_y_' + (y+1) ] != undefined )
+        park_overlay.refreshTile(new google.maps.Point(x, y + 1));
+    } else if ( palette_selected == PAL_OPT_ADD_ROAD ) {
+    } else if ( palette_selected == PAL_OPT_RANDOM ) {
+    }
 }
 
 function add_park_border_line_rulers() {
@@ -460,12 +516,12 @@ function toogle_map_mode(event) {
 
         park_map.overlayMapTypes.insertAt(0, park_overlay);
         google.maps.event.clearListeners(park_map, 'click');
-        park_map.addListener('click', add_tree);
+        park_map.addListener('click', add_object);
 
         var current_active = document.getElementsByClassName("active");
         if (current_active.length > 0) current_active[0].className = current_active[0].className.replace(" active", "");
 
-        pal_selected = PAL_OPT_NONE;
+        palette_selected = PAL_OPT_NONE;
 
         palette.style.width = '100px';
 
@@ -489,7 +545,7 @@ function toogle_map_mode(event) {
         google.maps.event.clearListeners(park_map, 'click');
         park_map.addListener('click', add_vertex);
 
-        pal_selected = PAL_OPT_NONE;
+        palette_selected = PAL_OPT_NONE;
 
         palette.style.width = '0';
 
