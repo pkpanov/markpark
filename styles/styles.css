@@ -1,0 +1,78 @@
+#map {
+  height: 100%;
+}
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#areapanel {
+  position: absolute;
+  font-family: Arial, sans-serif;
+  font-size: 0.8em;
+  font-weight: bold;
+  background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
+  padding: 10px;
+  margin: 10px;
+  border-radius: 5px;
+  top: 20px;
+  right: 20px;
+  user-select: none;
+  z-index: 10;
+}
+
+.menu {
+  position: fixed;
+  font-family: Arial, sans-serif;
+  font-size: 0.8em;
+  font-weight: bold;
+  background-color: #DCD9D4; 
+  background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
+  border-radius: 5px;
+  overflow-x: hidden;
+  top: 0;
+  left: 0;
+  padding-top: 15px;
+  height: 100%;
+  width: 0;
+  z-index: 9;
+  transition: 0.5s;
+}
+
+.menu .palopt {
+
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 70px;
+  height: 100px;
+  margin: 0 auto;
+  padding-top: 5px;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.menu img {
+
+  border-radius: 4px;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.menu div.palopt.active, .menu div.palopt:hover {
+  box-shadow: 0 0 2px 1px rgba(0, 140, 186, 0.5);
+}
+
+a[href^="http://maps.google.com/maps"]{display:none !important}
+a[href^="https://maps.google.com/maps"]{display:none !important}
+
+.gmnoprint a, .gmnoprint span, .gm-style-cc {
+  display:none;
+}
+
+.gmnoprint div {
+   background:none !important;
+}
