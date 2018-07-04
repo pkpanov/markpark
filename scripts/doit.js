@@ -516,6 +516,8 @@ function add_park_border_line_rulers() {
                 dist_info.open(park_map, ruler_markers[idx]);
             }
         })(i));
+        
+        if ( i == 0 ) google.maps.event.trigger( ruler_markers[ 0 ], 'click' );
 
         if (len == 2) break;
     }
