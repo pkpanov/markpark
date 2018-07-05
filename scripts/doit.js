@@ -31,8 +31,13 @@ var world_coords = [ { lat: 85, lng: 180 },
 var park_map;
 var park_border_line;
 var park_border_line_coords = [];
-var park_inner;
-var park_inner_coords = [];
+var park_alley_raw = [];
+var park_alley;
+var park_alley_coords = [];
+var park_alley_marker1 = null;
+var park_alley_marker2 = null;
+var park_area;
+var park_area_coords = [];
 var park_grid;
 var mouse_down_lat = 0;
 var mouse_down_lnt = 0;
@@ -243,6 +248,12 @@ function init_map() {
         scaledSize: new google.maps.Size(20, 20),
         origin: new google.maps.Point(0, 0),
     };
+    
+    icon_flag = {
+        url: 'ico/flag1.png',
+        scaledSize: new google.maps.Size(32, 32),
+        origin: new google.maps.Point(0, 0),
+    };
 
     park_markers = new google.maps.MVCArray();
 
@@ -255,9 +266,19 @@ function init_map() {
         editable: true,
         suppressUndo: true
     });
+    
+    park_alley = new google.maps.Polyline({
+        path: park_alley_coords,
+        geodesic: true,
+        strokeColor: '#9F8170',
+        strokeOpacity: 0.5,
+        strokeWeight: 7,
+        editable: false,
+        suppressUndo: true
+    });
 
-    park_inner = new google.maps.Polygon({
-        path: park_inner_coords,
+    park_area = new google.maps.Polygon({
+        path: park_area_coords,
         geodesic: true,
         strokeWeight: 0,
         fillColor: '#000000',
@@ -266,7 +287,7 @@ function init_map() {
     });
 
     park_border_line.setMap(park_map);
-    park_inner.setMap(park_map);
+    park_area.setMap(park_map);
     park_map.addListener('click', add_vertex);
     park_map.addListener('rightclick', toogle_map_mode);
     park_map.data.addListener('rightclick', toogle_map_mode);
@@ -375,7 +396,7 @@ function vertex_insert(idx) {
     park_markers.insertAt(idx, marker);
     park_markers.getAt(idx).set('state', MARKER_STATE_EDIT);
     park_markers.getAt(idx).set('infowindow', null);
-    park_inner.getPath().insertAt(idx, park_border_line.getPath().getAt(idx));
+    park_area.getPath().insertAt(idx, park_border_line.getPath().getAt(idx));
     update_areapanel();
 }
 
@@ -383,14 +404,14 @@ function vertex_remove(idx, removed) {
 
     park_markers.getAt(idx).setMap(null);
     park_markers.removeAt(idx);
-    park_inner.getPath().removeAt(idx);
+    park_area.getPath().removeAt(idx);
     update_areapanel();
 }
 
 function vertex_modify(idx, prev) {
 
     park_markers.getAt(idx).setPosition(park_border_line.getPath().getAt(idx));
-    park_inner.getPath().setAt(idx, park_border_line.getPath().getAt(idx));
+    park_area.getPath().setAt(idx, park_border_line.getPath().getAt(idx));
     update_areapanel();
 }
 
@@ -404,11 +425,11 @@ function add_vertex(event) {
 
 function add_object(event) {
     
-    var world_coordinates = project(event.latLng);
+    var world_coordinates = park_map.getProjection().fromLatLngToPoint( event.latLng );
     var scale = 1 << FIXED_ZOOM;
     var t = 256 / TILE_SIZE;
-    var x = Math.floor(world_coordinates.x * scale * t);
-    var y = Math.floor(world_coordinates.y * scale * t);
+    var x = Math.floor( world_coordinates.x * scale / TILE_SIZE );
+    var y = Math.floor( world_coordinates.y * scale / TILE_SIZE );
     var coord = new google.maps.Point(x, y);
     var tile_id = 'x_' + coord.x + '_y_' + coord.y;
     
@@ -436,6 +457,80 @@ function add_object(event) {
         if ( park_overlay.loadedWater[ 'x_' + x + '_y_' + (y+1) ] != undefined )
         park_overlay.refreshTile(new google.maps.Point(x, y + 1));
     } else if ( palette_selected == PAL_OPT_ADD_ROAD ) {
+
+        park_alley_raw.push( event.latLng );
+        
+        park_alley.getPath().clear();
+
+        for ( var i = 1; i < park_alley_raw.length - 1; i += 2 ) {
+    
+            var p0 = park_alley_raw[ i - 1 ];
+            var p1 = park_alley_raw[ i ];
+            var p2 = park_alley_raw[ i + 1 ];
+    
+            for ( var t = 0; t <= 1; t += 0.05 ) {
+        
+                var lat = ( 1 - t ) * ( 1 - t ) * p0.lat() + 2 * ( 1 - t ) * t * p1.lat() + t * t * p2.lat();
+                var lng = ( 1 - t ) * ( 1 - t ) * p0.lng() + 2 * ( 1 - t ) * t * p1.lng() + t * t * p2.lng();
+
+                park_alley.getPath().push( new google.maps.LatLng( lat, lng ) );
+            }
+        }
+        
+        if ( park_alley_raw.length % 2 == 0 ) {
+        
+            if ( park_alley_raw.length == 2 ) park_alley.getPath().push( park_alley_raw[ 0 ] );
+            park_alley.getPath().push( event.latLng );
+        }
+        
+        if ( park_alley_marker1 != null ) {
+        
+            park_alley_marker1.setMap( null );
+            park_alley_marker1 = null;
+        }
+        
+        if ( park_alley_marker2 != null ) {
+        
+            park_alley_marker2.setMap( null );
+            park_alley_marker2 = null;
+        }
+        
+        if ( park_alley_raw.length > 1 ) {
+        
+            park_alley_marker1 = new google.maps.Marker({
+                position: park_alley_raw[ 0 ], 
+                map: park_map,
+                icon: icon_flag
+            });
+            park_alley_marker1.setMap( park_map );
+        }
+
+        park_alley_marker2 = new google.maps.Marker({
+            position: park_alley_raw[ park_alley_raw.length - 1 ], 
+            map: park_map,
+            icon: icon_flag
+        });
+        park_alley_marker2.setMap( park_map );
+    
+        /*
+        var X = ( TILE_SIZE * ( 2 * x + 1 ) ) / ( scale * 2 );
+        var Y = ( TILE_SIZE * ( 2 * y + 1 ) ) / ( scale * 2 );    
+        var ll = park_map.getProjection().fromPointToLatLng( new google.maps.Point( X, Y ) );
+        console.log( 'x = ' +  x + ' y = ' + y );
+        console.log( 'latLng.lat = ' +  event.latLng.lat() + ' latLng.lng = ' + event.latLng.lng() );
+        console.log( 'world_coord.x = ' + world_coordinates.x + ' world_coord.y = ' + world_coordinates.y );
+        console.log( 'pt.x = ' +  pt.x/256 + ' pt.y = ' + pt.y/256 );
+        console.log( 'X = ' + X + ' Y = ' + Y );
+        console.log( 'll.lat = ' +  ll.lat() + 'll.lng = ' + ll.lng() );
+
+        var marker = new google.maps.Marker({
+            position: ll,
+            title:"Hello World!"
+        });
+
+        marker.setMap( park_map );
+        */
+        
     } else if ( palette_selected == PAL_OPT_RANDOM ) {
     
         var random_marker_ico_path = String( Math.floor(Math.random() * 100) );
@@ -530,6 +625,32 @@ function remove_park_border_line_rulers() {
 
 function toogle_map_mode(event) {
 
+    /*
+    var i, j;
+    var len = park_border_line.getPath().length;
+    
+    park_alley.getPath().clear();
+        
+    for ( i = 1; i < len - 1; i+=2 ) {
+    
+        var p0 = park_border_line.getPath().getAt(i-1);
+        var p1 = park_border_line.getPath().getAt(i);
+        var p2 = park_border_line.getPath().getAt(i+1);
+    
+        for ( j = 0; j < 100; j++ ) {
+        
+            var t = 0.01 * j;
+            var lx = ( 1 - t ) * ( 1 - t ) * p0.lat() + 2 * ( 1 - t ) * t * p1.lat() + t * t * p2.lat();
+            var ly = ( 1 - t ) * ( 1 - t ) * p0.lng() + 2 * ( 1 - t ) * t * p1.lng() + t * t * p2.lng();
+            
+            console.log( 'lx = ' + lx + ' ly = ' + ly );
+            park_alley.getPath().push( new google.maps.LatLng( lx, ly ) );
+        }
+    }
+    
+    return;
+    */
+
     if (park_markers.getLength() == 0) return;
 
     if (park_map.get('mode') == MAP_MODE_EDIT_OUTER) {
@@ -539,7 +660,7 @@ function toogle_map_mode(event) {
             change_marker_state(park_markers.getAt(i), i, MARKER_STATE_LOCKED);
         }
 
-        park_inner.setVisible(false);
+        park_area.setVisible(false);
         park_border_line.setVisible(false);
         park_map.data.add({
             geometry: new google.maps.Data.Polygon([world_coords, park_border_line.getPath().getArray()])
@@ -567,6 +688,10 @@ function toogle_map_mode(event) {
             random_markers[ i ].setMap( park_map );
             google.maps.event.trigger( random_markers[ i ], 'click' );
         }
+        
+        park_alley.setMap( park_map );
+        if ( park_alley_marker1 != null ) park_alley_marker1.setMap( park_map );
+        if ( park_alley_marker2 != null ) park_alley_marker2.setMap( park_map );
 
         park_map.set('mode', MAP_MODE_EDIT_INNER);
     } else if (park_map.get('mode') == MAP_MODE_EDIT_INNER) {
@@ -576,7 +701,7 @@ function toogle_map_mode(event) {
             change_marker_state(park_markers.getAt(i), i, MARKER_STATE_EDIT);
         }
 
-        park_inner.setVisible(true);
+        park_area.setVisible(true);
         park_border_line.setVisible(true);
         park_map.data.forEach(function (f) {
             park_map.data.remove(f);
@@ -594,6 +719,10 @@ function toogle_map_mode(event) {
         
         for ( i = 0; i < random_markers.length; i++ )
             random_markers[ i ].setMap( null );
+            
+        park_alley.setMap( null );
+        if ( park_alley_marker1 != null ) park_alley_marker1.setMap( null );
+        if ( park_alley_marker2 != null ) park_alley_marker2.setMap( null );
 
         park_map.set('mode', MAP_MODE_EDIT_OUTER);
     } else {
@@ -623,7 +752,7 @@ function update_areapanel() {
             park_border_line.getPath().getAt(i),
             park_border_line.getPath().getAt((i + 1) % len));
 
-    var area = google.maps.geometry.spherical.computeArea(park_inner.getPath().getArray());
+    var area = google.maps.geometry.spherical.computeArea(park_area.getPath().getArray());
     area /= 1000;
     areapanel.innerHTML = 'обиколка: ' + circum.toFixed(2) + ' метра' + '<br>' + 'площ: ' + area.toFixed(2) + ' декара';
 }
