@@ -466,14 +466,11 @@ function add_object(event) {
             });
 
             dist_info.open( park_map, random_marker );
+            
+            setTimeout( function() { dist_info.close() }, 3000 );
         });
         
-        var dist_info = new google.maps.InfoWindow({
-            disableAutoPan: true,
-            content: "ala-бала"
-        });
-
-        dist_info.open( park_map, random_marker );
+        google.maps.event.trigger( random_marker, 'click' );
     }
 }
 
@@ -565,8 +562,11 @@ function toogle_map_mode(event) {
 
         palette.style.width = '100px';
         
-        for ( i = 0; i < random_markers.length; i++ )
+        for ( i = 0; i < random_markers.length; i++ ) {
+        
             random_markers[ i ].setMap( park_map );
+            google.maps.event.trigger( random_markers[ i ], 'click' );
+        }
 
         park_map.set('mode', MAP_MODE_EDIT_INNER);
     } else if (park_map.get('mode') == MAP_MODE_EDIT_INNER) {
