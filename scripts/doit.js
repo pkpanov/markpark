@@ -46,6 +46,7 @@ var ruler_markers = [];
 var random_markers = [];
 var icon_bluepin, icon_redpin, icon_greenpin;
 var areapanel;
+var helppanel;
 var palette;
 var palette_selected = PAL_OPT_NONE;
 
@@ -301,6 +302,18 @@ function init_map() {
     park_overlay = new GridOverlay(new google.maps.Size(TILE_SIZE, TILE_SIZE));
 
     areapanel = document.getElementById('areapanel');
+    helppanel = document.getElementById('helppanel');
+    
+    helppanel.addEventListener( "click", function() {
+        alert("РЕЖИМ: ДЕФИНИРАНЕ НА ПАРК\n\
+клик по картата: добавя нов връх\n\
+клик върху връх: изтрива връх\n\
+преместване на връх: редактира границите\n\n\
+РЕЖИМ: РЕДАКТИРАНЕ НА ПАРК\n\
+изберете обект от менюто и добавете на картата\n\n\
+ДЕСЕН БУТОН НА МИШКАТА СМЕНЯ РЕЖИМА");
+    } );
+    
     palette = document.getElementById('palette');
 
     var palette_options = palette.getElementsByClassName("palopt");

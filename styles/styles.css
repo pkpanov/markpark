@@ -14,10 +14,20 @@ html, body {
   font-weight: bold;
   background-image: linear-gradient(120deg, #fdfbfb 0%, #ebedee 100%);
   padding: 10px;
-  margin: 10px;
   border-radius: 5px;
   top: 20px;
   right: 20px;
+  user-select: none;
+  z-index: 10;
+}
+
+#helppanel {
+  position: absolute;
+  font-family: Arial, sans-serif;
+  font-size: 0.8em;
+  font-weight: bold;
+  bottom: 64px;
+  right: 32px;
   user-select: none;
   z-index: 10;
 }
