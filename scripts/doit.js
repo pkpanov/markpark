@@ -446,13 +446,30 @@ function add_object(event) {
     var coord = new google.maps.Point(x, y);
     var tile_id = 'x_' + coord.x + '_y_' + coord.y;
     
-    if ( ( park_overlay.loadedTrees[tile_id] != undefined ) || ( park_overlay.loadedWater[tile_id] != undefined ) ) return;
+    if ( ( palette_selected != PAL_OPT_ADD_TREE && park_overlay.loadedTrees[tile_id] != undefined ) ||
+         ( park_overlay.loadedWater[tile_id] != undefined ) ) return;
 
     if ( palette_selected == PAL_OPT_NONE ) {
     } else if ( palette_selected == PAL_OPT_ADD_TREE ) {
     
-        park_overlay.loadedTrees[tile_id] = 1;
-        park_overlay.refreshTile(new google.maps.Point(x, y));
+        if ( park_overlay.loadedTrees[tile_id] != undefined ) {
+        
+            for ( var i = -1; i <= +1; i++ )
+                for ( var j = -1; j <= +1; j++ ) {
+            
+                    tile_id = 'x_' + (x+i) + '_y_' + (y+j);
+                    if ( ( park_overlay.loadedTrees[tile_id] == undefined ) &&
+                         ( park_overlay.loadedWater[tile_id] == undefined ) ) {
+                
+                        park_overlay.loadedTrees[tile_id] = 1;
+                        park_overlay.refreshTile(new google.maps.Point(x+i, y+j));
+                    }
+                }
+        } else {
+        
+            park_overlay.loadedTrees[tile_id] = 1;
+            park_overlay.refreshTile(new google.maps.Point(x, y));
+        }
     } else if ( palette_selected == PAL_OPT_ADD_WATER ) {
     
         park_overlay.loadedWater[tile_id] = 1;
@@ -687,7 +704,9 @@ function toogle_map_mode(event) {
 
         park_map.overlayMapTypes.insertAt(0, park_overlay);
         google.maps.event.clearListeners(park_map, 'click');
+        google.maps.event.clearListeners(park_map, 'dblclick');
         park_map.addListener('click', add_object);
+        park_map.addListener('dblclick', add_object);
 
         var current_active = document.getElementsByClassName("active");
         if (current_active.length > 0) current_active[0].className = current_active[0].className.replace(" active", "");
