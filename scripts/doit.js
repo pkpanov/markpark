@@ -31,11 +31,12 @@ var world_coords = [ { lat: 85, lng: 180 },
 var park_map;
 var park_border_line;
 var park_border_line_coords = [];
+var park_alley_cnt = 0;
+var create_new_park_alley = false;
 var park_alley_raw = [];
-var park_alley;
+var park_alley = [];
 var park_alley_coords = [];
-var park_alley_marker1 = null;
-var park_alley_marker2 = null;
+var park_alley_markers = [];
 var park_area;
 var park_area_coords = [];
 var park_grid;
@@ -44,7 +45,7 @@ var mouse_down_lnt = 0;
 var park_markers;
 var ruler_markers = [];
 var random_markers = [];
-var icon_bluepin, icon_redpin, icon_greenpin;
+var icon_bluepin, icon_redpin, icon_greenpin, icon_sign, icon_flag;
 var areapanel;
 var helppanel;
 var palette;
@@ -250,6 +251,12 @@ function init_map() {
         origin: new google.maps.Point(0, 0),
     };
     
+    icon_sign = {
+        url: 'ico/sign1.png',
+        scaledSize: new google.maps.Size(32, 32),
+        origin: new google.maps.Point(0, 0),
+    };
+    
     icon_flag = {
         url: 'ico/flag1.png',
         scaledSize: new google.maps.Size(32, 32),
@@ -265,16 +272,6 @@ function init_map() {
         strokeOpacity: 0.7,
         strokeWeight: 2,
         editable: true,
-        suppressUndo: true
-    });
-    
-    park_alley = new google.maps.Polyline({
-        path: park_alley_coords,
-        geodesic: true,
-        strokeColor: '#9F8170',
-        strokeOpacity: 0.5,
-        strokeWeight: 7,
-        editable: false,
         suppressUndo: true
     });
 
@@ -324,10 +321,24 @@ function init_map() {
             var current_active = document.getElementsByClassName("active");
             if (current_active.length > 0) current_active[0].className = current_active[0].className.replace(" active", "");
             this.className += " active";
+            
+            create_new_park_alley = false;
+            
+            if ( palette_selected == PAL_OPT_ADD_ROAD ) {
+            
+                if ( park_alley_cnt > 0 ) {
+                
+                    if ( park_alley_raw[ park_alley_cnt - 1 ].length < 2 ) {
+                
+                        remove_alley( park_alley_cnt - 1 );
+                    }
+                }
+            }
 
             for (var j = 0; j < palette_options.length; j++)
                 if (palette_options[j] == this) {
                     palette_selected = j+1;
+                    if ( palette_selected == PAL_OPT_ADD_ROAD ) create_new_park_alley = true;
                     break;
                 }
         });
@@ -436,6 +447,60 @@ function add_vertex(event) {
     }
 }
 
+function remove_alley( alley_idx ) {
+
+    if ( alley_idx >= park_alley_cnt ) return;
+
+    for ( var i = 0; i < 2; i++ )
+        if ( park_alley_markers[ alley_idx ][ i ] != null ) {
+
+            park_alley_markers[ alley_idx ][ i ].setMap( null );
+            park_alley_markers[ alley_idx ][ i ] = null;
+        }
+        
+    park_alley_markers.splice( alley_idx, 1 );
+    park_alley_raw.splice( alley_idx, 1 );
+    park_alley_coords.splice( alley_idx, 1 );
+    park_alley[ alley_idx ].setMap( null );
+    park_alley.splice( alley_idx, 1 );
+    park_alley_cnt--;
+    create_new_park_alley = true;
+}
+
+function componentToHex(c) {
+    var hex = c.toString(16);
+    return hex.length == 1 ? "0" + hex : hex;
+}
+
+function rgbToHex(r, g, b) {
+    return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+}
+
+function set_alley_sign_info_window( marker, iii ) {
+
+    marker.addListener('click', (function (idx) {
+            return function f() {
+
+                var i;
+                var dist = 0;
+                
+                for ( i = 0; i < park_alley_raw[ idx ].length - 1; i++ )
+                    dist += google.maps.geometry.spherical.computeDistanceBetween(
+                                park_alley_raw[ idx ][ i ],
+                                park_alley_raw[ idx ][ i + 1 ]);
+
+                var dist_str = String(dist.toFixed(2)) + ' м';
+
+                var dist_info = new google.maps.InfoWindow({
+                    disableAutoPan: true,
+                    content: dist_str
+                });
+
+                dist_info.open(park_map, marker);
+            }
+        })(iii));
+}
+
 function add_object(event) {
     
     var world_coordinates = park_map.getProjection().fromLatLngToPoint( event.latLng );
@@ -487,79 +552,140 @@ function add_object(event) {
         if ( park_overlay.loadedWater[ 'x_' + x + '_y_' + (y+1) ] != undefined )
         park_overlay.refreshTile(new google.maps.Point(x, y + 1));
     } else if ( palette_selected == PAL_OPT_ADD_ROAD ) {
-
-        park_alley_raw.push( event.latLng );
-        
-        park_alley.getPath().clear();
-
-        for ( var i = 1; i < park_alley_raw.length - 1; i += 2 ) {
     
-            var p0 = park_alley_raw[ i - 1 ];
-            var p1 = park_alley_raw[ i ];
-            var p2 = park_alley_raw[ i + 1 ];
-    
-            for ( var t = 0; t <= 1; t += 0.05 ) {
-        
-                var lat = ( 1 - t ) * ( 1 - t ) * p0.lat() + 2 * ( 1 - t ) * t * p1.lat() + t * t * p2.lat();
-                var lng = ( 1 - t ) * ( 1 - t ) * p0.lng() + 2 * ( 1 - t ) * t * p1.lng() + t * t * p2.lng();
+        if ( create_new_park_alley ) {
+ 
+            park_alley_cnt++;
+            var alley_idx = park_alley_cnt - 1;
 
-                park_alley.getPath().push( new google.maps.LatLng( lat, lng ) );
-            }
-        }
-        
-        if ( park_alley_raw.length % 2 == 0 ) {
-        
-            if ( park_alley_raw.length == 2 ) park_alley.getPath().push( park_alley_raw[ 0 ] );
-            park_alley.getPath().push( event.latLng );
-        }
-        
-        if ( park_alley_marker1 != null ) {
-        
-            park_alley_marker1.setMap( null );
-            park_alley_marker1 = null;
-        }
-        
-        if ( park_alley_marker2 != null ) {
-        
-            park_alley_marker2.setMap( null );
-            park_alley_marker2 = null;
-        }
-        
-        if ( park_alley_raw.length > 1 ) {
-        
-            park_alley_marker1 = new google.maps.Marker({
-                position: park_alley_raw[ 0 ], 
+            park_alley_raw.push( [ event.latLng ] );
+            park_alley_coords.push( [] );
+            
+            park_alley.push( new google.maps.Polyline({
+                                path: park_alley_coords[ alley_idx ],
+                                geodesic: true,
+                                //strokeColor: '#9F8170',
+                                strokeColor: rgbToHex(Math.floor(Math.random() * 255),Math.floor(Math.random() * 255),Math.floor(Math.random() * 255)),
+                                strokeOpacity: 0.5,
+                                strokeWeight: 7,
+                                editable: false,
+                                suppressUndo: true
+            }) );
+            park_alley[ alley_idx ].setMap( park_map );
+            
+            park_alley_markers.push( [ null, null ] );
+            park_alley_markers[ alley_idx ][ 1 ] = new google.maps.Marker({
+                position: park_alley_raw[ alley_idx ][ 0 ], 
                 map: park_map,
                 icon: icon_flag
             });
-            park_alley_marker1.setMap( park_map );
+            park_alley_markers[ alley_idx ][ 1 ].setMap( park_map );
+            var infowindow = new google.maps.InfoWindow({
+                disableAutoPan: true,
+                content: 'натисни за край на алея'
+            });
+
+            infowindow.open(park_map, park_alley_markers[ alley_idx ][ 1 ]);
+            park_alley_markers[ alley_idx ][ 1 ].addListener('click', function () {
+                
+                infowindow.close();
+                google.maps.event.clearListeners(park_alley_markers[ alley_idx ][ 1 ], 'click');
+                park_alley_markers[ alley_idx ][ 1 ].setIcon( icon_sign );
+                set_alley_sign_info_window( park_alley_markers[ alley_idx ][ 1 ], alley_idx );
+                google.maps.event.trigger( park_alley_markers[ alley_idx ][ 1 ], 'click' );
+                create_new_park_alley = true;
+            });
+ 
+            create_new_park_alley = false;
+        } else {
+        
+            var alley_idx = park_alley_cnt - 1;
+        
+            park_alley_raw[ alley_idx ].push( event.latLng );
+            park_alley[ alley_idx ].getPath().clear();
+            
+            for ( var i = 1; i < park_alley_raw[ alley_idx ].length - 1; i += 2 ) {
+
+                var p0 = park_alley_raw[ alley_idx ][ i - 1 ];
+                var p1 = park_alley_raw[ alley_idx ][ i ];
+                var p2 = park_alley_raw[ alley_idx ][ i + 1 ];
+
+                for ( var t = 0; t <= 1; t += 0.05 ) {
+
+                    var lat = ( 1 - t ) * ( 1 - t ) * p0.lat() + 2 * ( 1 - t ) * t * p1.lat() + t * t * p2.lat();
+                    var lng = ( 1 - t ) * ( 1 - t ) * p0.lng() + 2 * ( 1 - t ) * t * p1.lng() + t * t * p2.lng();
+
+                    park_alley[ alley_idx ].getPath().push( new google.maps.LatLng( lat, lng ) );
+                }
+            }
+
+            if ( park_alley_raw[ alley_idx ].length % 2 == 0 ) {
+
+                if ( park_alley_raw[ alley_idx ].length == 2 )
+                    park_alley[ alley_idx ].getPath().push( park_alley_raw[ alley_idx ][ 0 ] );
+                park_alley[ alley_idx ].getPath().push( event.latLng );
+            }
+            
+            for ( var i = 0; i < 2; i++ )
+                if ( park_alley_markers[ alley_idx ][ i ] != null ) {
+
+                    park_alley_markers[ alley_idx ][ i ].setMap( null );
+                    park_alley_markers[ alley_idx ][ i ] = null;
+                }
+
+            if ( park_alley_raw[ alley_idx ].length > 1 ) {
+
+                park_alley_markers[ alley_idx ][ 0 ] = new google.maps.Marker({
+                    position: park_alley_raw[ alley_idx ][ 0 ], 
+                    map: park_map,
+                    icon: icon_sign
+                });
+                park_alley_markers[ alley_idx ][ 0 ].setMap( park_map );
+                set_alley_sign_info_window( park_alley_markers[ alley_idx ][ 0 ], alley_idx );
+            }
+
+            park_alley_markers[ alley_idx ][ 1 ] = new google.maps.Marker({
+                position: park_alley_raw[ alley_idx ][ park_alley_raw[ alley_idx ].length - 1 ], 
+                map: park_map,
+                icon: icon_flag
+            });
+            park_alley_markers[ alley_idx ][ 1 ].setMap( park_map );
+            var infowindow = new google.maps.InfoWindow({
+                disableAutoPan: true,
+                content: 'натисни за край на алея'
+            });
+
+            infowindow.open(park_map, park_alley_markers[ alley_idx ][ 1 ]);
+            
+            park_alley_markers[ alley_idx ][ 1 ].addListener('click', function () {
+                
+                infowindow.close();
+                google.maps.event.clearListeners(park_alley_markers[ alley_idx ][ 1 ], 'click');
+                park_alley_markers[ alley_idx ][ 1 ].setIcon( icon_sign );
+                set_alley_sign_info_window( park_alley_markers[ alley_idx ][ 1 ], alley_idx );
+                google.maps.event.trigger( park_alley_markers[ alley_idx ][ 1 ], 'click' );
+                create_new_park_alley = true;
+            });
+
+            /*
+            var X = ( TILE_SIZE * ( 2 * x + 1 ) ) / ( scale * 2 );
+            var Y = ( TILE_SIZE * ( 2 * y + 1 ) ) / ( scale * 2 );    
+            var ll = park_map.getProjection().fromPointToLatLng( new google.maps.Point( X, Y ) );
+            console.log( 'x = ' +  x + ' y = ' + y );
+            console.log( 'latLng.lat = ' +  event.latLng.lat() + ' latLng.lng = ' + event.latLng.lng() );
+            console.log( 'world_coord.x = ' + world_coordinates.x + ' world_coord.y = ' + world_coordinates.y );
+            console.log( 'pt.x = ' +  pt.x/256 + ' pt.y = ' + pt.y/256 );
+            console.log( 'X = ' + X + ' Y = ' + Y );
+            console.log( 'll.lat = ' +  ll.lat() + 'll.lng = ' + ll.lng() );
+
+            var marker = new google.maps.Marker({
+                position: ll,
+                title:"Hello World!"
+            });
+
+            marker.setMap( park_map );
+            */
         }
-
-        park_alley_marker2 = new google.maps.Marker({
-            position: park_alley_raw[ park_alley_raw.length - 1 ], 
-            map: park_map,
-            icon: icon_flag
-        });
-        park_alley_marker2.setMap( park_map );
-    
-        /*
-        var X = ( TILE_SIZE * ( 2 * x + 1 ) ) / ( scale * 2 );
-        var Y = ( TILE_SIZE * ( 2 * y + 1 ) ) / ( scale * 2 );    
-        var ll = park_map.getProjection().fromPointToLatLng( new google.maps.Point( X, Y ) );
-        console.log( 'x = ' +  x + ' y = ' + y );
-        console.log( 'latLng.lat = ' +  event.latLng.lat() + ' latLng.lng = ' + event.latLng.lng() );
-        console.log( 'world_coord.x = ' + world_coordinates.x + ' world_coord.y = ' + world_coordinates.y );
-        console.log( 'pt.x = ' +  pt.x/256 + ' pt.y = ' + pt.y/256 );
-        console.log( 'X = ' + X + ' Y = ' + Y );
-        console.log( 'll.lat = ' +  ll.lat() + 'll.lng = ' + ll.lng() );
-
-        var marker = new google.maps.Marker({
-            position: ll,
-            title:"Hello World!"
-        });
-
-        marker.setMap( park_map );
-        */
         
     } else if ( palette_selected == PAL_OPT_RANDOM ) {
     
@@ -655,32 +781,6 @@ function remove_park_border_line_rulers() {
 
 function toogle_map_mode(event) {
 
-    /*
-    var i, j;
-    var len = park_border_line.getPath().length;
-    
-    park_alley.getPath().clear();
-        
-    for ( i = 1; i < len - 1; i+=2 ) {
-    
-        var p0 = park_border_line.getPath().getAt(i-1);
-        var p1 = park_border_line.getPath().getAt(i);
-        var p2 = park_border_line.getPath().getAt(i+1);
-    
-        for ( j = 0; j < 100; j++ ) {
-        
-            var t = 0.01 * j;
-            var lx = ( 1 - t ) * ( 1 - t ) * p0.lat() + 2 * ( 1 - t ) * t * p1.lat() + t * t * p2.lat();
-            var ly = ( 1 - t ) * ( 1 - t ) * p0.lng() + 2 * ( 1 - t ) * t * p1.lng() + t * t * p2.lng();
-            
-            console.log( 'lx = ' + lx + ' ly = ' + ly );
-            park_alley.getPath().push( new google.maps.LatLng( lx, ly ) );
-        }
-    }
-    
-    return;
-    */
-
     if (park_markers.getLength() == 0) return;
 
     if (park_map.get('mode') == MAP_MODE_EDIT_OUTER) {
@@ -721,9 +821,12 @@ function toogle_map_mode(event) {
             google.maps.event.trigger( random_markers[ i ], 'click' );
         }
         
-        park_alley.setMap( park_map );
-        if ( park_alley_marker1 != null ) park_alley_marker1.setMap( park_map );
-        if ( park_alley_marker2 != null ) park_alley_marker2.setMap( park_map );
+        for ( i = 0; i < park_alley_cnt; i++ ) {
+        
+            park_alley[ i ].setMap( park_map );
+            if ( park_alley_markers[ i ][ 0 ] != null ) park_alley_markers[ i ][ 0 ].setMap( park_map );
+            if ( park_alley_markers[ i ][ 1 ] != null ) park_alley_markers[ i ][ 1 ].setMap( park_map );
+        }
 
         park_map.set('mode', MAP_MODE_EDIT_INNER);
     } else if (park_map.get('mode') == MAP_MODE_EDIT_INNER) {
@@ -751,10 +854,13 @@ function toogle_map_mode(event) {
         
         for ( i = 0; i < random_markers.length; i++ )
             random_markers[ i ].setMap( null );
-            
-        park_alley.setMap( null );
-        if ( park_alley_marker1 != null ) park_alley_marker1.setMap( null );
-        if ( park_alley_marker2 != null ) park_alley_marker2.setMap( null );
+        
+        for ( i = 0; i < park_alley_cnt; i++ ) {
+        
+            park_alley[ i ].setMap( null );
+            if ( park_alley_markers[ i ][ 0 ] != null ) park_alley_markers[ i ][ 0 ].setMap( null );
+            if ( park_alley_markers[ i ][ 1 ] != null ) park_alley_markers[ i ][ 1 ].setMap( null );
+        }
 
         park_map.set('mode', MAP_MODE_EDIT_OUTER);
     } else {
