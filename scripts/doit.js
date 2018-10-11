@@ -31,6 +31,8 @@ var world_coords = [ { lat: 85, lng: 180 },
 var park_map;
 var park_border_line;
 var park_border_line_coords = [];
+var tree_coords = [];
+var water_coords = [];
 var park_alley_cnt = 0;
 var create_new_park_alley = false;
 var park_alley_raw = [];
@@ -40,6 +42,7 @@ var park_alley_markers = [];
 var park_area;
 var park_area_coords = [];
 var park_grid;
+var park_overlay;
 var mouse_down_lat = 0;
 var mouse_down_lnt = 0;
 var park_markers;
@@ -309,6 +312,8 @@ function init_map() {
 РЕЖИМ: РЕДАКТИРАНЕ НА ПАРК\n\
 изберете обект от менюто и добавете на картата\n\n\
 ДЕСЕН БУТОН НА МИШКАТА СМЕНЯ РЕЖИМА");
+		alert("КЛАВИШ 'S' записва картата във файл\n\
+КЛАВИШ 'L' зарежда картата от файл");
     } );
     
     palette = document.getElementById('palette');
@@ -521,22 +526,25 @@ function add_object(event) {
         
             for ( var i = -1; i <= +1; i++ )
                 for ( var j = -1; j <= +1; j++ ) {
-            
+
                     tile_id = 'x_' + (x+i) + '_y_' + (y+j);
                     if ( ( park_overlay.loadedTrees[tile_id] == undefined ) &&
                          ( park_overlay.loadedWater[tile_id] == undefined ) ) {
                 
+						tree_coords.push( event.latLng );
                         park_overlay.loadedTrees[tile_id] = 1;
                         park_overlay.refreshTile(new google.maps.Point(x+i, y+j));
                     }
                 }
         } else {
         
+			tree_coords.push( event.latLng );
             park_overlay.loadedTrees[tile_id] = 1;
             park_overlay.refreshTile(new google.maps.Point(x, y));
         }
     } else if ( palette_selected == PAL_OPT_ADD_WATER ) {
     
+		water_coords.push( event.latLng );
         park_overlay.loadedWater[tile_id] = 1;
         park_overlay.refreshTile(new google.maps.Point(x, y));
         
@@ -571,6 +579,7 @@ function add_object(event) {
                                 editable: false,
                                 suppressUndo: true
             }) );
+
             park_alley[ alley_idx ].setMap( park_map );
             
             park_alley_markers.push( [ null, null ] );
@@ -893,4 +902,231 @@ function update_areapanel() {
     var area = google.maps.geometry.spherical.computeArea(park_area.getPath().getArray());
     area /= 1000;
     areapanel.innerHTML = 'обиколка: ' + circum.toFixed(2) + ' метра' + '<br>' + 'площ: ' + area.toFixed(2) + ' декара';
+}
+
+function clear_all() {
+	
+	park_map.set('mode', MAP_MODE_EDIT_INNER);
+	toogle_map_mode( null );
+	tree_coords.length = 0;
+	water_coords.length = 0;
+	park_overlay.loadedTiles = {};
+    park_overlay.loadedTrees = {};
+    park_overlay.loadedWater = {};
+	park_border_line.getPath().clear();
+	park_border_line_coords.length = 0;
+	park_alley_cnt = 0;
+	park_alley_raw.length = 0;
+	park_alley.length = 0; 
+	park_alley_coords.length = 0;
+	park_alley_markers.length = 0;
+	park_area_coords.length = 0;
+	park_markers.length = 0;
+	ruler_markers.length = 0;
+	random_markers.length = 0;
+}
+
+function save_to_file( ) {
+	
+	var i, j;
+	var idx = 0;
+	var event = {};
+	var park_data = "";
+	
+	park_data += park_border_line.getPath().length.toString();
+	park_data += "\r\n";
+	
+	for ( i = 0; i < park_border_line.getPath().length; i++ ) {
+		
+		park_data += park_border_line.getPath().getAt(i).lat().toFixed(6).toString();
+		park_data += ',';
+		park_data += park_border_line.getPath().getAt(i).lng().toFixed(6).toString();
+		park_data += "\r\n";
+	}
+	
+	park_data += tree_coords.length.toString();
+	park_data += "\r\n";;
+	
+	for ( i = 0; i < tree_coords.length; i++ ) {
+		
+		park_data += tree_coords[ i ].lat().toFixed(6).toString();
+		park_data += ',';
+		park_data += tree_coords[ i ].lng().toFixed(6).toString();
+		park_data += "\r\n";
+	}
+	
+	park_data += water_coords.length.toString();
+	park_data += "\r\n";
+	
+	for ( i = 0; i < water_coords.length; i++ ) {
+		
+		park_data += water_coords[ i ].lat().toFixed(6).toString();
+		park_data += ',';
+		park_data += water_coords[ i ].lng().toFixed(6).toString();
+		park_data += "\r\n";
+	}
+	
+	park_data += park_alley_cnt.toString();
+	park_data += "\r\n";
+	
+	for ( i = 0; i < park_alley_cnt; i++ ) {
+		
+		park_data += park_alley_raw[ i ].length;
+		park_data += "\r\n";
+		
+		for ( j = 0; j < park_alley_raw[ i ].length; j++ ) {
+			
+			park_data += park_alley_raw[ i ][ j ].lat().toFixed(6).toString();
+			park_data += ',';
+			park_data += park_alley_raw[ i ][ j ].lng().toFixed(6).toString();
+			park_data += "\r\n";
+		}
+	}
+	
+	park_data += random_markers.length.toString();
+	park_data += "\r\n";
+	
+	for ( i = 0; i < random_markers.length; i++ ) {
+		
+		park_data += random_markers[ i ].getPosition().lat().toFixed(6).toString();
+		park_data += ',';
+		park_data += random_markers[ i ].getPosition().lng().toFixed(6).toString();
+		park_data += "\r\n";
+	}
+	
+	console.log( park_data );
+	
+	var data = new Blob([park_data], {type: 'text/plain'});
+	textFile = window.URL.createObjectURL(data);
+	
+	var link = document.createElement('a');
+	link.href = textFile;
+	link.download = 'park_map.txt';
+	link.click();
+}
+
+function build_park( arr ) {
+	
+	var i, j;
+	var idx = 0;
+	var event = {};
+	
+	var border_line_len = parseInt( arr[ idx++ ] );
+	for ( i = 0; i < border_line_len; i++ ) {
+		
+		var p = new google.maps.LatLng( parseFloat( arr[ idx ] ), parseFloat( arr[ idx + 1 ] ) );
+		idx += 2;
+
+		event.latLng = p;
+		park_map.set('mode', MAP_MODE_EDIT_OUTER);
+		add_vertex( event );
+	}
+	
+	var mid_lat = ( park_border_line.getPath().getAt( 0 ).lat() + park_border_line.getPath().getAt( border_line_len / 2 ).lat() ) / 2;
+	var mid_lng = ( park_border_line.getPath().getAt( 0 ).lng() + park_border_line.getPath().getAt( border_line_len / 2 ).lng() ) / 2;
+	
+	park_map.setCenter( new google.maps.LatLng(mid_lat, mid_lng ) );
+	
+	park_map.set('mode', MAP_MODE_EDIT_OUTER);
+	toogle_map_mode( null );
+	
+	palette_selected = PAL_OPT_ADD_TREE;
+	var tree_count = parseInt( arr[ idx++ ] );
+	for ( i = 0; i < tree_count; i++ ) {
+		
+		var p = new google.maps.LatLng( parseFloat( arr[ idx ] ), parseFloat( arr[ idx + 1 ] ) );
+		idx += 2;
+		
+		event.latLng = p;
+		add_object( event );
+	}
+	
+	palette_selected = PAL_OPT_ADD_WATER;
+	var water_count = parseInt( arr[ idx++ ] );
+	for ( i = 0; i < water_count; i++ ) {
+		
+		var p = new google.maps.LatLng( parseFloat( arr[ idx ] ), parseFloat( arr[ idx + 1 ] ) );
+		idx += 2;
+		
+		event.latLng = p;
+		add_object( event );
+	}
+	
+	palette_selected = PAL_OPT_ADD_ROAD;
+	var park_alley_cntx = parseInt( arr[ idx++ ] );
+	for ( i = 0; i < park_alley_cntx; i++ ) {
+		
+		create_new_park_alley = true;
+		
+		var park_alley_pt_count = parseInt( arr[ idx++ ] );
+		
+		for ( j = 0; j < park_alley_pt_count; j++ ) {
+			
+			var p = new google.maps.LatLng( parseFloat( arr[ idx ] ), parseFloat( arr[ idx + 1 ] ) );
+			idx += 2;
+		
+			event.latLng = p;
+			add_object( event );
+		}
+		
+		google.maps.event.trigger( park_alley_markers[ i ][ 1 ], 'click' );
+	}
+	
+	palette_selected = PAL_OPT_RANDOM;
+	var random_count = parseInt( arr[ idx++ ] );
+	for ( i = 0; i < random_count; i++ ) {
+		
+		var p = new google.maps.LatLng( parseFloat( arr[ idx ] ), parseFloat( arr[ idx + 1 ] ) );
+		idx += 2;
+		
+		event.latLng = p;
+		add_object( event );
+	}
+}
+
+document.onkeypress = function( e ) {
+
+	if (!e) e = window.event;	
+	//alert( e.charCode );
+	
+	if ( e.charCode == 83 || e.charCode == 115 ) {
+		
+		save_to_file();
+	}
+		
+	if ( e.charCode == 82 || e.charCode == 114 ) {
+
+		clear_all();
+	}
+	
+	if ( e.charCode == 76 || e.charCode == 108 ) {
+
+		var element = document.createElement('div');
+		element.innerHTML = '<input type="file">';
+		var fileInput = element.firstChild;
+
+		fileInput.addEventListener('change', function() {
+			
+			var file = fileInput.files[ 0 ];
+
+			if ( file.name.match(/\.(txt|json|log)$/) ) {
+				var reader = new FileReader();
+
+				reader.onload = function() {
+					
+					console.log(reader.result);
+					
+					var s = reader.result.split(/[\s,\r\n]+/);
+					clear_all();
+					build_park( s );
+				};
+
+				reader.readAsText(file);    
+			} else {
+				alert("File not supported, .txt or .json files only");
+			}
+		});
+
+		fileInput.click();
+	}		
 }
