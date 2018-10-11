@@ -697,7 +697,7 @@ function add_object(event) {
         var random_marker_ico = {
 
             url: random_marker_ico_path,
-            scaledSize: new google.maps.Size(48, 48),
+            scaledSize: new google.maps.Size(40, 40),
             origin: new google.maps.Point(0, 0),
         };
     
