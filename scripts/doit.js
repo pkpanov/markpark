@@ -689,15 +689,15 @@ function add_object(event) {
         
     } else if ( palette_selected == PAL_OPT_RANDOM ) {
     
-        var random_marker_ico_path = String( Math.floor(Math.random() * 100) );
+        var random_marker_ico_path = String( Math.floor(Math.random() * 80) );
         
-        while ( random_marker_ico_path.length < 3 ) random_marker_ico_path = '0' + random_marker_ico_path;
-        random_marker_ico_path = 'ico/random/' + random_marker_ico_path + '.png';
+        while ( random_marker_ico_path.length < 4 ) random_marker_ico_path = '0' + random_marker_ico_path;
+        random_marker_ico_path = 'ico/objects/' + random_marker_ico_path + '.png';
         
         var random_marker_ico = {
 
             url: random_marker_ico_path,
-            scaledSize: new google.maps.Size(32, 32),
+            scaledSize: new google.maps.Size(48, 48),
             origin: new google.maps.Point(0, 0),
         };
     
