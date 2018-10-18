@@ -1021,9 +1021,9 @@ function build_park( arr ) {
 		park_map.set('mode', MAP_MODE_EDIT_OUTER);
 		add_vertex( event );
 	}
-	
-	var mid_lat = ( park_border_line.getPath().getAt( 0 ).lat() + park_border_line.getPath().getAt( border_line_len / 2 ).lat() ) / 2;
-	var mid_lng = ( park_border_line.getPath().getAt( 0 ).lng() + park_border_line.getPath().getAt( border_line_len / 2 ).lng() ) / 2;
+
+	var mid_lat = ( park_border_line.getPath().getAt( 0 ).lat() + park_border_line.getPath().getAt( Math.floor( border_line_len / 2 ) ).lat() ) / 2;
+	var mid_lng = ( park_border_line.getPath().getAt( 0 ).lng() + park_border_line.getPath().getAt( Math.floor( border_line_len / 2 ) ).lng() ) / 2;
 	
 	park_map.setCenter( new google.maps.LatLng(mid_lat, mid_lng ) );
 	
